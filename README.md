@@ -39,7 +39,7 @@ ribo_commands(ribofile1,
  individualtranscript: plot and compare individual transcript coverages.
     annotations: The path to the annotation file used; required for individualtranscript to work.
     transcripts: Specify transcripts to analyze. If left empty, uses transcript count outliers.
-    transcriptregions: Specify regions ("UTR5", "UTR5_junction", "CDS", "UTR3_junction", "UTR3") to analyze. If left empty, analyzes the entire transcript.
+    transcriptregions: Specify regions ("UTR5", "CDS", "UTR3") to analyze. If left empty, analyzes the entire transcript.
     numpeaks: Specify the number of peaks to identify.
 
  
