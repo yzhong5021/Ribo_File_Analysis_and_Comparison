@@ -386,11 +386,13 @@ def plot_trans_dist(transcript, abundances, numpeaks, fullname, plot, savefigs, 
     plt.title(shortname, fontsize = 20)
 
     ####TICKS####
-    maxabunval = max(abundances)
-    maxposval = positions[-1]
-    minposval = positions[0]
-    plt.yticks([i * (maxabunval/20) for i in range(0, 21)])
-    plt.xticks([i * (maxposval/20)+minposval for i in range(0, 21)])
+    # maxabunval = max(abundances)
+    # maxposval = positions[-1]
+    # minposval = positions[0]
+    # plt.yticks([i * (maxabunval/20) for i in range(0, 21)])
+    # plt.xticks([i * (maxposval/20)+minposval for i in range(0, 21)])
+    plt.locator_params(axis='y', nbins=20)
+    plt.locator_params(axis='x', nbins=20)  
 
     ####PEAKS####
     max_values = []
@@ -450,7 +452,7 @@ def findoutliers(x, y, labels):
     y_high_percentile = np.percentile(y, 99.97)
     labels_outliers = []
     for i, label in enumerate(labels):
-        if (x[i] < x_low_percentile or x[i] > x_high_percentile or y[i] < y_low_percentile or y[i] > y_high_percentile):
+        if ((x[i] < x_low_percentile or x[i] > x_high_percentile) and (y[i] < y_low_percentile or y[i] > y_high_percentile)):
             labels_outliers.append(label)
     return(labels_outliers)
 
@@ -678,7 +680,6 @@ def do_comparetranscriptcounts(
                 regions=[],
                 experiments=[], experiments2=[]
 ):
-    print("hihihihihi")
     if not compareribos:
         if(len(experiments)==0):
             print("Please include the experiments you would like to compare.")
@@ -843,33 +844,35 @@ def do_individualtranscript(
                 transcripts=[],
                 annotations = []
 ):
+    realregions = ["UTR5", "CDS", "UTR3"]
+    if(len(transcripts)>=1):
+        temptranscripts = transcripts
+        transcripts = {}
+        for region in realregions:
+            transcripts[region] = temptranscripts
+
     if("UTR5_junction" in transcriptregions or "UTR3_junction" in transcriptregions):
         print("Warning: UTR5_junction and UTR3_junction are not currently supported for individual transcript analysis.")
         return
-    # if len(transcriptregions) == 0:
-    #     # If no regions are specified, default to all regions
-    #     transcriptregions = ["UTR5","CDS", "UTR3"]
 
     all_tc = {}
-    transcriptnames = None
-    for region in transcriptregions:
+    # transcriptnames = None
+    for region in realregions:
         region_counts = ribo1.get_region_counts(
         region, sum_lengths=True, sum_references=False, range_lower=minlength, range_upper=maxlength, experiments=experiments)
         for experiment in experiments:
             all_tc[region] = [region_counts.loc[:, experiment].tolist()]
-        if transcriptnames is None:
-            transcriptnames = region_counts.index.tolist()
-    
+  
+    transcriptnames = region_counts.index.tolist()
 
     if (not comparetranscriptcounts) and (len(transcripts) == 0) and compareribos:
         all_tc_2 = {}
-        for region in transcriptregions:
+        for region in realregions:
             region_counts = ribo2.get_region_counts(
                 region, sum_lengths=True, sum_references=False, range_lower=minlength, range_upper=maxlength, experiments=experiments2)
             for experiment in experiments2:
                 all_tc_2[region] = [region_counts.loc[:, experiment].tolist()]
 
-    
     if(not compareribos):
         # We only have one ribo!
         for i in range(len(experiments)):
@@ -878,20 +881,31 @@ def do_individualtranscript(
                     transcripts = {}
                     for region in transcriptregions:
                         transcripts[region] = findoutliers(all_tc[region][i], all_tc[region][j], transcriptnames)
+                        if(transcripts[region] == []):
+                            print("No significant outlier transcripts found. Please specify transcripts to plot.")
 
-                coverage = ribo1.get_coverage(experiments[j],  range_lower=minlength, range_upper=maxlength)
+                coverage = ribo1.get_coverage(experiments[i],  range_lower=minlength, range_upper=maxlength)
+                coverage2 = ribo1.get_coverage(experiments[j], range_lower=minlength, range_upper=maxlength)
 
                 if(len(transcriptregions) == 0):
+                    print("Transcripts used in plotting: ")
+                    print(transcripts["CDS"])
                     for transcript in transcripts["CDS"]:
                         plot_trans_dist(transcript, abundances = coverage[transcript], numpeaks = numpeaks,
-                                    fullname=transcript, plot=plot, savefigs=savefigs)
+                                    fullname=experiments[i]+ " "+transcript, plot=plot, savefigs=savefigs)
+                        plot_trans_dist(transcript, abundances = coverage2[transcript], numpeaks = numpeaks,
+                                    fullname=experiments[j]+ " "+transcript, plot=plot, savefigs=savefigs)
 
                 else:
                     if annotations == "":
                         print("\nTo view transcript coverages in specific regions, please specify an annotation file.")
                         break
                     column_names = ['transcript', 'start', 'end', 'feature', 'score', 'strand']
-
+                    print("Transcripts used in plotting: ")
+                    for transcriptregion in transcriptregions:
+                        print(transcripts[transcriptregion])
+                    if(transcriptregions == []):
+                        print(transcripts)
                     df = pd.read_csv(annotations, sep='\t', header=None, names=column_names)
                     for transcriptregion in transcriptregions:
                         for transcript in transcripts[transcriptregion]:  
@@ -901,7 +915,9 @@ def do_individualtranscript(
                             startvalue = indices_values['start']
                             endvalue = indices_values['end']
                             plot_trans_dist(transcript, abundances=coverage[transcript][startvalue:endvalue], start=startvalue, numpeaks=numpeaks, 
-                                            fullname=(transcriptregion + " " + transcript), plot=plot, savefigs=savefigs)
+                                            fullname=(transcriptregion +" "+ experiments[i]+ " " + transcript), plot=plot, savefigs=savefigs)
+                            plot_trans_dist(transcript, abundances=coverage2[transcript][startvalue:endvalue], start=startvalue, numpeaks=numpeaks, 
+                                            fullname=(transcriptregion +" "+ experiments[j]+ " " + transcript), plot=plot, savefigs=savefigs)
                     if(len(transcriptregions) == 0):
                         for transcript in transcripts:
                             rows = df[(df['transcript'] == transcript) & (df['feature'] == transcriptregion)]
@@ -909,52 +925,55 @@ def do_individualtranscript(
                             indices_values = indices.iloc[0]  
                             startvalue = indices_values['start']
                             endvalue = indices_values['end']
-                            plot_trans_dist(transcript, abundances = coverage[transcript][start], start=startvalue, numpeaks=numpeaks, 
-                                            fullname=(transcriptregion + " " + transcript), plot=plot, savefigs=savefigs)
+                            plot_trans_dist(transcript, abundances=coverage[transcript][startvalue:endvalue], start=startvalue, numpeaks=numpeaks, 
+                                            fullname=(transcriptregion +" "+ experiments[i]+ " " + transcript), plot=plot, savefigs=savefigs)
+                            plot_trans_dist(transcript, abundances=coverage2[transcript][startvalue:endvalue], start=startvalue, numpeaks=numpeaks, 
+                                            fullname=(transcriptregion +" "+ experiments[j]+ " " + transcript), plot=plot, savefigs=savefigs)
+
     else:
         for i in range(len(experiments)):
             for j in range(len(experiments2)):
-                print(transcripts)
                 if (len(transcripts)==0):
                     transcripts = {}
-                    for region in transcriptregions:
+                    for region in realregions:
                         transcripts[region] = findoutliers(all_tc[region][i], all_tc_2[region][j], transcriptnames)
-                else:
-                    temptranscripts = {}
-                    for region in transcriptregions: 
-                        temptranscripts[region] = transcripts
+                        if(transcripts[region] == []):
+                            print("No significant outlier transcripts found. Please specify transcripts to plot.")
 
                 coverage = ribo1.get_coverage(experiments[i],  range_lower = minlength, range_upper = maxlength)
                 coverage2 = ribo2.get_coverage(experiments2[j], range_lower = minlength, range_upper = maxlength)
 
                 if(len(transcriptregions) == 0):
+                    print("Transcripts used in plotting: ")
                     print(transcripts["CDS"])
                     for transcript in transcripts["CDS"]:
                         plot_trans_dist(transcript, abundances = coverage[transcript], numpeaks = numpeaks,
-                                    fullname = transcript, plot=plot, savefigs=savefigs)
+                                    fullname = experiments[i] + " " + transcript, plot=plot, savefigs=savefigs)
                         plot_trans_dist(transcript, abundances = coverage2[transcript], numpeaks = numpeaks, 
-                                    fullname = transcript + " (Ribo 2)", plot = plot, savefigs = savefigs)
+                                    fullname = experiments2[j] + " (Ribo 2) " + transcript, plot = plot, savefigs = savefigs)
 
                 else:
-                    print(transcriptregions)
                     if annotations == "":
                         print("\nTo view transcript coverages in specific regions, please specify an annotation file.")
                         return
+                    print("Transcripts used in plotting: ")
+                    for transcriptregion in transcriptregions:
+                        print(transcripts[transcriptregion])
+                    if(transcriptregions == []):
+                        print(transcripts)
                     column_names = ['transcript', 'start', 'end', 'feature', 'score', 'strand']
                     df = pd.read_csv(annotations, sep='\t', header=None, names=column_names)
                     for transcriptregion in transcriptregions:
-                        print(transcriptregion)
                         for transcript in transcripts[transcriptregion]:  
                             rows = df[(df['transcript'] == transcript) & (df['feature'] == transcriptregion)]
                             indices = rows[['start', 'end']]
                             indices_values = indices.iloc[0]  
                             startvalue = indices_values['start']
                             endvalue = indices_values['end']
-                            print(indices_values)
                             plot_trans_dist(transcript, abundances=coverage[transcript][startvalue:endvalue], start=startvalue, numpeaks=numpeaks, 
                                             fullname=(transcriptregion + " " + transcript), plot=plot, savefigs=savefigs)
                             plot_trans_dist(transcript, abundances=coverage2[transcript][startvalue:endvalue], start=startvalue, numpeaks=numpeaks, 
-                                            fullname=(transcriptregion + " " + transcript + " (Ribo 2)"), plot=plot, savefigs=savefigs)
+                                            fullname=(transcriptregion + " (Ribo 2) " + transcript), plot=plot, savefigs=savefigs)
         
 
   
@@ -1057,7 +1076,6 @@ def ribo_commands(ribofile1,
 
     ####TRANSCRIPT_COUNTS####
     if comparetranscriptcounts:
-        print("hihihihi")
         do_comparetranscriptcounts(ribo1, ribo2, compareribos,
                                 savefigs, plot, minlength,
                                 maxlength, regions,
@@ -1065,7 +1083,6 @@ def ribo_commands(ribofile1,
 
     ####INDIVIDUAL_TRANSCRIPT####
     if individualtranscript:
-        print("hihihihihi")
         do_individualtranscript(ribo1, ribo2, compareribos,
                              savefigs, plot, minlength,
                              maxlength, transcriptregions, numpeaks,
